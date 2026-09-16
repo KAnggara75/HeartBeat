@@ -1,7 +1,7 @@
 APP_NAME := heartbeat
 BIN_DIR := bin
 
-.PHONY: all build run test clean docker-build docker-up docker-down
+.PHONY: all build run dev test clean docker-build docker-up docker-down
 
 all: test build
 
@@ -13,6 +13,10 @@ build:
 run:
 	@echo "==> Running HeartBeat service..."
 	go run ./cmd/heartbeat -config config.yaml
+
+dev:
+	@echo "==> Running HeartBeat with Air live reload..."
+	air
 
 run-once:
 	@echo "==> Running HeartBeat one-shot..."
