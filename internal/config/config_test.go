@@ -1,6 +1,8 @@
 package config
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,3 +114,63 @@ kafka:
 		})
 	}
 }
+
+func TestLoadConfigFromSCC(t *testing.T) {
+	sccResponse := `{
+		"name": "heartbeat",
+		"profiles": ["default"],
+		"propertySources": [
+			{
+				"name": "test-source",
+				"source": {
+					"app.name": "scc-heartbeat",
+					"app.log_level": "debug",
+					"app.server.port": 8888,
+					"supabase[0].alias": "scc-supabase",
+					"supabase[0].url": "https://scc.supabase.co",
+					"supabase[0].api_key": "scc-key",
+					"supabase[0].table_name": "heartbeats",
+					"kafka[0].alias": "scc-kafka",
+					"kafka[0].brokers[0]": "scc-kafka:9092"
+				}
+			}
+		]
+	}`
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(sccResponse))
+	}))
+	defer ts.Close()
+
+	cfg, err := LoadConfigWithSCC("", SCCParams{
+		URL: ts.URL,
+	})
+	if err != nil {
+		t.Fatalf("LoadConfigWithSCC failed: %v", err)
+	}
+
+	if cfg.App.Name != "scc-heartbeat" {
+		t.Errorf("expected App.Name 'scc-heartbeat', got '%s'", cfg.App.Name)
+	}
+	if cfg.App.Server.Port != 8888 {
+		t.Errorf("expected Server.Port 8888, got %d", cfg.App.Server.Port)
+	}
+	if len(cfg.Supabase) != 1 || cfg.Supabase[0].Alias != "scc-supabase" {
+		t.Fatalf("expected supabase alias 'scc-supabase', got %+v", cfg.Supabase)
+	}
+	if len(cfg.Kafka) != 1 || cfg.Kafka[0].Alias != "scc-kafka" {
+		t.Fatalf("expected kafka alias 'scc-kafka', got %+v", cfg.Kafka)
+	}
+}
+
+func TestLoadConfigMissingSCCURL(t *testing.T) {
+	// Ensure SCC_URL is cleared
+	t.Setenv("SCC_URL", "")
+
+	_, err := LoadConfigWithSCC("non_existent_config.yaml", SCCParams{})
+	if err == nil {
+		t.Fatal("expected error when SCC_URL is empty and local file does not exist, got nil")
+	}
+}
+
