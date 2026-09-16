@@ -12,7 +12,7 @@ app:
     port: 8080          # Endpoints: /healthz, /livez, /status, /trigger
 
 scheduler:
-  default_interval: "1m" # Default execution frequency (e.g. 1m, 5m, 1h, 6h)
+  default_interval: "${HEALH_INTERVAL:-5m}" # Default execution frequency (reads HEALH_INTERVAL or defaults to 5m)
   run_on_startup: true   # Run an immediate heartbeat check upon daemon start
 
 # ------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ supabase:
     url: "${SUPABASE_PROD_URL:-https://your-project.supabase.co}"
     api_key: "${SUPABASE_PROD_KEY:-your-anon-or-service-role-key}"
     table_name: "heartbeats"
-    interval: "1m"                 # Custom interval (overrides default_interval)
+    interval: "${HEALH_INTERVAL:-5m}" # Custom interval (overrides default_interval)
     # cron: "* * * * *"            # Alternatively, use standard 5-field cron
     timeout: "15s"
     payload:
