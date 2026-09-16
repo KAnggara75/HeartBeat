@@ -30,3 +30,15 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Binaries
+/heartbeat
+/bin/
+
+# Local configuration & credentials
+config.yaml
+*.pem
+*.cert
+*.key
+certs/*
+!certs/.gitkeep
