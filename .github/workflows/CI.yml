@@ -132,10 +132,9 @@ jobs:
     name: Build and Push to Docker Hub
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: KAnggara/DevOps/dockerbuild@v0.1.7
+      - uses: KAnggara/DevOps/dockerbuild@v0.1.13
         with:
-          dockerfile_path: Dockerfile
-          registry: docker.io
-          image_name: kanggara75/heartbeat
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tag_strategy: run_number
