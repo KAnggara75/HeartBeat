@@ -1,0 +1,104 @@
+# ==============================================================================
+# HeartBeat Configuration Template
+# Environment variable substitution is supported: ${VAR_NAME} or ${VAR_NAME:-default}
+# ==============================================================================
+
+app:
+  name: "HeartBeat"
+  log_level: "info"     # debug, info, warn, error
+  log_format: "text"    # text or json
+  server:
+    enabled: true       # Enable HTTP health and monitoring server
+    port: 8080          # Endpoints: /healthz, /livez, /status, /trigger
+
+scheduler:
+  default_interval: "6h" # Default execution frequency (e.g. 1h, 4h, 6h, 12h, 24h)
+  run_on_startup: true   # Run an immediate heartbeat check upon daemon start
+
+# ------------------------------------------------------------------------------
+# Multi-Database Supabase Heartbeat
+# Free-tier Supabase projects are automatically paused after 7 days of inactivity.
+# This sends periodic POST requests to prevent pausing/suspension.
+# ------------------------------------------------------------------------------
+supabase:
+  # Database 1: Production
+  - alias: "supabase-prod"
+    enabled: true
+    url: "${SUPABASE_PROD_URL:-https://your-project.supabase.co}"
+    api_key: "${SUPABASE_PROD_KEY:-your-anon-or-service-role-key}"
+    table_name: "heartbeats"
+    interval: "6h"                 # Custom interval (overrides default_interval)
+    # cron: "0 */6 * * *"          # Alternatively, use standard 5-field cron
+    timeout: "15s"
+    payload:
+      source: "hb-worker"
+      notes: "Production keep-alive automated ping"
+    cleanup:
+      enabled: true               # Automatically purge old records
+      retention_days: 7           # Keep heartbeat logs up to 7 days
+
+  # Database 2: Staging / Side Project
+  - alias: "supabase-staging"
+    enabled: true
+    url: "${SUPABASE_STAGING_URL:-https://staging-project.supabase.co}"
+    api_key: "${SUPABASE_STAGING_KEY:-your-staging-key}"
+    table_name: "heartbeats"
+    interval: "12h"
+    cleanup:
+      enabled: true
+      retention_days: 3
+
+# ------------------------------------------------------------------------------
+# Multi-Cluster Kafka Heartbeat (Aiven Kafka, Upstash, Self-hosted)
+# Keeps Kafka brokers, topics, and consumer groups warm to prevent pause/inactivity.
+# ------------------------------------------------------------------------------
+kafka:
+  # Cluster 1: Aiven Kafka with mutual TLS (mTLS) - Standard Aiven setup
+  - alias: "aiven-prod"
+    enabled: true
+    brokers:
+      - "${AIVEN_KAFKA_BROKER:-kafka-demo-project.aivencloud.com:12345}"
+    topic: "heartbeat-ping"
+    interval: "4h"
+    security:
+      protocol: "SSL"             # PLAINTEXT, SSL, SASL_SSL, SASL_PLAINTEXT
+      ssl:
+        insecure_skip_verify: false
+        # Can use file paths:
+        ca_cert_file: "./certs/aiven_ca.pem"
+        client_cert_file: "./certs/aiven_service.cert"
+        client_key_file: "./certs/aiven_service.key"
+        # Or inject PEM string directly via environment variables:
+        # ca_cert_pem: "${AIVEN_CA_PEM}"
+        # client_cert_pem: "${AIVEN_CLIENT_CERT_PEM}"
+        # client_key_pem: "${AIVEN_CLIENT_KEY_PEM}"
+    produce:
+      enabled: true
+      key: "heartbeat"
+      message: "Automated ping from HeartBeat daemon"
+    consume:
+      enabled: true               # Verifies read activity and consumer group
+      group_id: "hb-aiven-group"
+      timeout: "8s"
+      max_messages: 1
+
+  # Cluster 2: Kafka with SASL_SSL (e.g. SCRAM-SHA-512 or PLAIN)
+  - alias: "aiven-sasl"
+    enabled: false
+    brokers:
+      - "kafka-sasl-project.aivencloud.com:12346"
+    topic: "heartbeat-ping"
+    interval: "6h"
+    security:
+      protocol: "SASL_SSL"
+      ssl:
+        insecure_skip_verify: false
+      sasl:
+        mechanism: "SCRAM-SHA-512" # PLAIN, SCRAM-SHA-256, SCRAM-SHA-512
+        username: "${AIVEN_SASL_USER:-avnadmin}"
+        password: "${AIVEN_SASL_PASS:-secretpassword}"
+    produce:
+      enabled: true
+    consume:
+      enabled: true
+      group_id: "hb-sasl-group"

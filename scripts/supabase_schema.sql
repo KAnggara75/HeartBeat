@@ -1,0 +1,39 @@
+-- ==========================================================
+-- HeartBeat Schema for Supabase
+-- Run this SQL in your Supabase SQL Editor
+-- ==========================================================
+
+-- 1. Create table for heartbeat logs
+CREATE TABLE IF NOT EXISTS public.heartbeats (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alias TEXT NOT NULL,
+    source TEXT DEFAULT 'heartbeat-daemon',
+    status TEXT DEFAULT 'alive',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
+-- 2. Create index on created_at and alias for fast query & cleanup
+CREATE INDEX IF NOT EXISTS idx_heartbeats_alias ON public.heartbeats (alias);
+CREATE INDEX IF NOT EXISTS idx_heartbeats_created_at ON public.heartbeats (created_at DESC);
+
+-- 3. Row Level Security (RLS) Configuration
+ALTER TABLE public.heartbeats ENABLE ROW LEVEL SECURITY;
+
+-- Allow anon & service_role keys to insert heartbeats
+CREATE POLICY "Allow insert heartbeats" 
+ON public.heartbeats 
+FOR INSERT 
+WITH CHECK (true);
+
+-- Allow reading heartbeats (optional, for monitoring)
+CREATE POLICY "Allow read heartbeats" 
+ON public.heartbeats 
+FOR SELECT 
+USING (true);
+
+-- Allow cleanup of old records
+CREATE POLICY "Allow delete heartbeats" 
+ON public.heartbeats 
+FOR DELETE 
+USING (true);
