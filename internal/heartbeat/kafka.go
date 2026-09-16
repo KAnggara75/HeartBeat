@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -131,7 +133,55 @@ func (k *KafkaService) produceHeartbeat(ctx context.Context, cfg *config.KafkaCo
 		Time:  time.Now(),
 	}
 
-	return writer.WriteMessages(ctx, msg)
+	err = writer.WriteMessages(ctx, msg)
+	if err != nil && strings.Contains(err.Error(), "Unknown Topic Or Partition") {
+		slog.Info("Topic not found on broker, attempting automatic topic creation",
+			slog.String("alias", cfg.Alias),
+			slog.String("topic", cfg.Topic),
+		)
+		if createErr := k.ensureTopicExists(ctx, cfg, transport); createErr != nil {
+			slog.Warn("Topic creation attempt notice", slog.String("alias", cfg.Alias), slog.Any("error", createErr))
+		}
+		time.Sleep(1 * time.Second)
+		err = writer.WriteMessages(ctx, msg)
+	}
+
+	return err
+}
+
+func (k *KafkaService) ensureTopicExists(ctx context.Context, cfg *config.KafkaConfig, transport *kafka.Transport) error {
+	client := &kafka.Client{
+		Addr:      kafka.TCP(cfg.Brokers...),
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
+
+	resp, err := client.CreateTopics(ctx, &kafka.CreateTopicsRequest{
+		Topics: []kafka.TopicConfig{
+			{
+				Topic:             cfg.Topic,
+				NumPartitions:     1,
+				ReplicationFactor: 1,
+			},
+		},
+	})
+	if err != nil {
+		if errors.Is(err, kafka.TopicAlreadyExists) || strings.Contains(strings.ToLower(err.Error()), "already exist") {
+			return nil
+		}
+		return err
+	}
+
+	if resp != nil && resp.Errors != nil {
+		if topicErr, ok := resp.Errors[cfg.Topic]; ok && topicErr != nil {
+			if errors.Is(topicErr, kafka.TopicAlreadyExists) || strings.Contains(strings.ToLower(topicErr.Error()), "already exist") {
+				return nil
+			}
+			return topicErr
+		}
+	}
+
+	return nil
 }
 
 func (k *KafkaService) consumeHeartbeat(ctx context.Context, cfg *config.KafkaConfig, tlsConfig *tls.Config, saslMech sasl.Mechanism) error {
@@ -257,7 +307,25 @@ func loadCertificateData(filePath, rawPEM string) ([]byte, error) {
 		return []byte(rawPEM), nil
 	}
 	if filePath != "" {
+		if strings.HasPrefix(filePath, "http://") || strings.HasPrefix(filePath, "https://") {
+			return fetchRemoteCert(filePath)
+		}
 		return os.ReadFile(filePath)
 	}
 	return nil, nil
+}
+
+func fetchRemoteCert(certURL string) ([]byte, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(certURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetching remote cert from %s: %w", certURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("remote cert at %s returned HTTP %d", certURL, resp.StatusCode)
+	}
+
+	return io.ReadAll(resp.Body)
 }
