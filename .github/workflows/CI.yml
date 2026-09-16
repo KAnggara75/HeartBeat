@@ -29,10 +29,6 @@ jobs:
     permissions:
       contents: read
 
-    strategy:
-      matrix:
-        go-version: ["1.26.x", "1.27.x"]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -40,7 +36,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: "go.mod"
 
       - name: Cache Go modules
         uses: actions/cache@v6.1.0
@@ -48,9 +44,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-${{ matrix.go-version }}-
+            ${{ runner.os }}-go-${{ hashFiles('go.mod') }}-
 
       - name: Download dependencies
         run: go mod download
@@ -72,7 +68,6 @@ jobs:
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.0.0
-        if: matrix.go-version == '1.27.x'
         with:
           files: ./coverage.out
           flags: unittests
@@ -81,7 +76,6 @@ jobs:
           fail_ci_if_error: false
 
       - name: Check coverage threshold
-        if: matrix.go-version == '1.27.x'
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//')
           echo "Current coverage: ${COVERAGE}%"
@@ -107,7 +101,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.27.x"
+          go-version-file: "go.mod"
 
       - name: Build
         run: go build -v -ldflags="-w -s" -o bin/heartbeat ./cmd/heartbeat
