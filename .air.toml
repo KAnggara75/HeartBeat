@@ -1,0 +1,56 @@
+# Air configuration for HeartBeat (Hot-Reload Daemon)
+# https://github.com/air-verse/air
+
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  # Build main binary from cmd/heartbeat
+  cmd = "go build -ldflags='-w -s' -o ./tmp/heartbeat ./cmd/heartbeat"
+  entrypoint = ["./tmp/heartbeat"]
+  delay = 500
+
+  # Monitored directories and file extensions
+  include_dir = ["cmd", "internal", "scripts"]
+  include_ext = ["go", "yaml", "yml", "sql"]
+  include_file = ["config.yaml", "config.example.yaml"]
+
+  # Directories and files to ignore
+  exclude_dir = ["assets", "tmp", "bin", "vendor", "testdata", "certs", ".git"]
+  exclude_file = []
+  exclude_regex = ["_test\\.go$"]
+  exclude_unchanged = false
+  follow_symlink = false
+
+  # Graceful process restart with SIGINT
+  send_interrupt = true
+  kill_delay = "1s"
+  stop_on_error = true
+  log = "build-errors.log"
+
+  poll = false
+  poll_interval = 0
+  rerun = false
+  rerun_delay = 500
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  main_only = false
+  silent = false
+  time = true
+
+[misc]
+  # Remove temporary build binary on exit
+  clean_on_exit = true
+
+[screen]
+  # Refresh terminal on rebuild for clean logs
+  clear_on_rebuild = true
+  keep_scroll = true
