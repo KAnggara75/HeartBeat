@@ -36,6 +36,12 @@
   - `GET /status`: Menampilkan ringkasan status, latensi, dan riwayat pemeriksaan setiap target secara *real-time*.
   - `POST /trigger`: Memicu eksekusi *heartbeat* secara manual via HTTP request.
 
+- ☁️ **Centralized Config via Spring Cloud Config ([`scc2go`](https://github.com/KAnggara75/scc2go))**:
+  - Konfigurasi dapat diambil langsung secara dinamis dari **Spring Cloud Config Server** via pustaka [`scc2go`](https://github.com/KAnggara75/scc2go).
+  - Mendukung autentikasi *Basic / Bearer token* dan opsi *bypass TLS certificate*.
+  - Otomatis melakukan normalisasi format properti berindeks (`supabase[0].alias`, `kafka[0].brokers[0]`).
+  - Mendukung *fallback* otomatis ke `config.yaml` lokal jika URL Spring Cloud Config tidak disetel.
+
 - 🔐 **Konfigurasi Ramah Lingkungan (*12-Factor App*)**:
   - Mendukung substitusi variabel lingkungan dalam YAML: `${VAR_NAME}` atau `${VAR_NAME:-default_value}`.
 
@@ -197,6 +203,26 @@ docker compose logs -f
 
 # Hentikan
 docker compose down
+```
+
+### Mode 4: Menggunakan Spring Cloud Config Server ([`scc2go`](https://github.com/KAnggara75/scc2go))
+
+HeartBeat dapat mengambil konfigurasi terpusat secara dinamis dari Spring Cloud Config Server dengan menentukan `SCC_URL` (wajib disediakan via environment variable atau CLI flag jika tanpa file lokal):
+
+```bash
+# Set SCC_URL dan APP_AUTH_SECRET:
+export SCC_URL="https://conflect.example.com/heartbeat/prd"
+export APP_AUTH_SECRET="your-secret-token"
+
+# Jalankan daemon:
+./bin/heartbeat
+
+# Atau jalankan one-shot mode:
+./bin/heartbeat -once
+
+# Atau tentukan via CLI flags:
+./bin/heartbeat -scc-url "https://conflect.example.com/heartbeat/prd" \
+                -scc-auth "Bearer your-secret-token"
 ```
 
 ---
