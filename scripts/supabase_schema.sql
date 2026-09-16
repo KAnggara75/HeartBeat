@@ -20,20 +20,25 @@ CREATE INDEX IF NOT EXISTS idx_heartbeats_created_at ON public.heartbeats (creat
 -- 3. Row Level Security (RLS) Configuration
 ALTER TABLE public.heartbeats ENABLE ROW LEVEL SECURITY;
 
--- Allow anon & service_role keys to insert heartbeats
-CREATE POLICY "Allow insert heartbeats" 
-ON public.heartbeats 
-FOR INSERT 
-WITH CHECK (true);
+-- 4. Idempotent Policy Creation
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'heartbeats' AND policyname = 'Allow insert heartbeats'
+    ) THEN
+        CREATE POLICY "Allow insert heartbeats" ON public.heartbeats FOR INSERT WITH CHECK (true);
+    END IF;
 
--- Allow reading heartbeats (optional, for monitoring)
-CREATE POLICY "Allow read heartbeats" 
-ON public.heartbeats 
-FOR SELECT 
-USING (true);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'heartbeats' AND policyname = 'Allow read heartbeats'
+    ) THEN
+        CREATE POLICY "Allow read heartbeats" ON public.heartbeats FOR SELECT USING (true);
+    END IF;
 
--- Allow cleanup of old records
-CREATE POLICY "Allow delete heartbeats" 
-ON public.heartbeats 
-FOR DELETE 
-USING (true);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'heartbeats' AND policyname = 'Allow delete heartbeats'
+    ) THEN
+        CREATE POLICY "Allow delete heartbeats" ON public.heartbeats FOR DELETE USING (true);
+    END IF;
+END
+$$;
