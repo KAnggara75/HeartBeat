@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/KAnggara75/scc2go"
+	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -212,6 +213,7 @@ func LoadConfigWithSCC(path string, scc SCCParams) (*Config, error) {
 
 	// 1. If Spring Cloud Config URL is provided, attempt scc2go fetch
 	if scc.URL != "" {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		scc2go.GetEnv(scc.URL, scc.Auth, scc.DisableTLS)
 
 		normalized := normalizeConfigMap(viper.AllSettings())

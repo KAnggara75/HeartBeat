@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/spf13/viper"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -143,6 +145,7 @@ func TestLoadConfigFromSCC(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	viper.Reset()
 	cfg, err := LoadConfigWithSCC("", SCCParams{
 		URL: ts.URL,
 	})
