@@ -177,3 +177,23 @@ func TestLoadConfigMissingSCCURL(t *testing.T) {
 	}
 }
 
+func TestResolveDefaultInterval(t *testing.T) {
+	t.Setenv("HEALH_INTERVAL", "")
+	t.Setenv("HEALTH_INTERVAL", "")
+	if got := resolveDefaultInterval(); got != "5m" {
+		t.Errorf("expected default 5m, got %s", got)
+	}
+
+	t.Setenv("HEALH_INTERVAL", "10m")
+	if got := resolveDefaultInterval(); got != "10m" {
+		t.Errorf("expected 10m from HEALH_INTERVAL, got %s", got)
+	}
+
+	t.Setenv("HEALH_INTERVAL", "")
+	t.Setenv("HEALTH_INTERVAL", "2m")
+	if got := resolveDefaultInterval(); got != "2m" {
+		t.Errorf("expected 2m from HEALTH_INTERVAL, got %s", got)
+	}
+}
+
+

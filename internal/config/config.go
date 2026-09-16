@@ -279,7 +279,7 @@ func extractSCCCustomProperties(cfg *Config) {
 							Host:      host,
 							URL:       host,
 							TableName: "heartbeats",
-							Interval:  "1m",
+							Interval:  resolveDefaultInterval(),
 							Cleanup: SupabaseCleanupConfig{
 								Enabled:        true,
 								Retention:      "24h",
@@ -348,7 +348,7 @@ func extractSCCCustomProperties(cfg *Config) {
 							Enabled:  &enabled,
 							Brokers:  brokers,
 							Topic:    topic,
-							Interval: "1m",
+							Interval: resolveDefaultInterval(),
 							Security: KafkaSecurityConfig{
 								Protocol: protocol,
 								SSL: KafkaSSLConfig{
@@ -440,6 +440,17 @@ func normalizeConfigMap(input map[string]interface{}) map[string]interface{} {
 	return result
 }
 
+// resolveDefaultInterval returns interval from HEALH_INTERVAL (or HEALTH_INTERVAL) env, defaulting to "5m"
+func resolveDefaultInterval() string {
+	if val := os.Getenv("HEALH_INTERVAL"); val != "" {
+		return val
+	}
+	if val := os.Getenv("HEALTH_INTERVAL"); val != "" {
+		return val
+	}
+	return "5m"
+}
+
 func setDefaults(cfg *Config) {
 	if cfg.App.Name == "" {
 		cfg.App.Name = "HeartBeat"
@@ -453,14 +464,17 @@ func setDefaults(cfg *Config) {
 	if cfg.App.Server.Port == 0 {
 		cfg.App.Server.Port = 8080
 	}
+	cfg.App.Server.Enabled = true
+
+	defaultInterval := resolveDefaultInterval()
 
 	if cfg.Scheduler.DefaultInterval == "" {
-		cfg.Scheduler.DefaultInterval = "1m"
+		cfg.Scheduler.DefaultInterval = defaultInterval
 	}
 
 	for i := range cfg.Supabase {
 		if cfg.Supabase[i].Interval == "" {
-			cfg.Supabase[i].Interval = "1m"
+			cfg.Supabase[i].Interval = defaultInterval
 		}
 		if cfg.Supabase[i].TableName == "" {
 			cfg.Supabase[i].TableName = "heartbeats"
@@ -476,7 +490,7 @@ func setDefaults(cfg *Config) {
 
 	for i := range cfg.Kafka {
 		if cfg.Kafka[i].Interval == "" {
-			cfg.Kafka[i].Interval = "1m"
+			cfg.Kafka[i].Interval = defaultInterval
 		}
 		if cfg.Kafka[i].Topic == "" {
 			cfg.Kafka[i].Topic = "heartbeat-ping"
