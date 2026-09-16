@@ -12,7 +12,7 @@ app:
     port: 8080          # Endpoints: /healthz, /livez, /status, /trigger
 
 scheduler:
-  default_interval: "6h" # Default execution frequency (e.g. 1h, 4h, 6h, 12h, 24h)
+  default_interval: "1m" # Default execution frequency (e.g. 1m, 5m, 1h, 6h)
   run_on_startup: true   # Run an immediate heartbeat check upon daemon start
 
 # ------------------------------------------------------------------------------
@@ -27,15 +27,15 @@ supabase:
     url: "${SUPABASE_PROD_URL:-https://your-project.supabase.co}"
     api_key: "${SUPABASE_PROD_KEY:-your-anon-or-service-role-key}"
     table_name: "heartbeats"
-    interval: "6h"                 # Custom interval (overrides default_interval)
-    # cron: "0 */6 * * *"          # Alternatively, use standard 5-field cron
+    interval: "1m"                 # Custom interval (overrides default_interval)
+    # cron: "* * * * *"            # Alternatively, use standard 5-field cron
     timeout: "15s"
     payload:
       source: "hb-worker"
       notes: "Production keep-alive automated ping"
     cleanup:
       enabled: true               # Automatically purge old records
-      retention_days: 7           # Keep heartbeat logs up to 7 days
+      retention: "24h"            # Purge heartbeat logs older than 24 hours
 
   # Database 2: Staging / Side Project
   - alias: "supabase-staging"
@@ -59,7 +59,7 @@ kafka:
     brokers:
       - "${AIVEN_KAFKA_BROKER:-kafka-demo-project.aivencloud.com:12345}"
     topic: "heartbeat-ping"
-    interval: "4h"
+    interval: "1m"
     security:
       protocol: "SSL"             # PLAINTEXT, SSL, SASL_SSL, SASL_PLAINTEXT
       ssl:
