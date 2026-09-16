@@ -35,7 +35,7 @@ func NewScheduler(cfg *config.Config, manager *heartbeat.Manager) *Scheduler {
 func (s *Scheduler) Start() error {
 	defaultInterval := s.cfg.Scheduler.DefaultInterval
 	if defaultInterval == "" {
-		defaultInterval = "6h"
+		defaultInterval = "5m"
 	}
 
 	// Schedule Supabase instances
