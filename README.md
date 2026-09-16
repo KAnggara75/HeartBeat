@@ -233,6 +233,7 @@ Saat `app.server.enabled: true`, endpoint HTTP berikut aktif (default port `8080
 
 | Endpoint | Method | Deskripsi |
 | :--- | :---: | :--- |
+| `/` | `GET` | **Web Status Dashboard**: Halaman visual interaktif menampilkan status target, waktu heartbeat terakhir, latensi, auto-refresh 15 detik, serta tombol manual trigger. |
 | `/healthz` | `GET` | Health check probe sederhana (mengembalikan HTTP 200 `{"status":"ok"}`). |
 | `/livez` | `GET` | Alias untuk `/healthz`. |
 | `/status` | `GET` | Menampilkan data JSON status terakhir, latensi, dan pesan dari seluruh database & cluster. |
