@@ -28,6 +28,9 @@ func main() {
 	runOnce := flag.Bool("once", false, "Run heartbeats once and exit (useful for cron/CI)")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	shortVersion := flag.Bool("v", false, "Print version (shorthand)")
+	sccURL := flag.String("scc-url", os.Getenv("SCC_URL"), "Spring Cloud Config Server URL (or via SCC_URL env)")
+	sccAuth := flag.String("scc-auth", os.Getenv("SCC_AUTH"), "Authorization header for Spring Cloud Config (or via SCC_AUTH env)")
+	sccInsecure := flag.Bool("scc-insecure", os.Getenv("SCC_INSECURE") == "true" || os.Getenv("SCC_DISABLE_TLS") == "true", "Disable TLS verification for Spring Cloud Config")
 	flag.Parse()
 
 	if *showVersion || *shortVersion {
@@ -40,7 +43,11 @@ func main() {
 		cfgFile = *shortConfig
 	}
 
-	cfg, err := config.LoadConfig(cfgFile)
+	cfg, err := config.LoadConfigWithSCC(cfgFile, config.ResolveSCCParams(config.SCCParams{
+		URL:        *sccURL,
+		Auth:       *sccAuth,
+		DisableTLS: *sccInsecure,
+	}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
 		os.Exit(1)
