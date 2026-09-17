@@ -15,15 +15,32 @@ import (
 
 	"github.com/KAnggara75/HeartBeat/internal/config"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
+type pgxConnExecutor interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, arguments ...any) (commandTag pgconn.CommandTag, err error)
+}
+
+type pgxConnCloser interface {
+	pgxConnExecutor
+	Close(ctx context.Context) error
+}
+
 type SupabaseService struct {
-	client *http.Client
+	client       *http.Client
+	pgxConnector func(ctx context.Context, connStr string) (pgxConnCloser, error)
+}
+
+func defaultPgxConnector(ctx context.Context, connStr string) (pgxConnCloser, error) {
+	return pgx.Connect(ctx, connStr)
 }
 
 func NewSupabaseService() *SupabaseService {
 	return &SupabaseService{
-		client: &http.Client{},
+		client:       &http.Client{},
+		pgxConnector: defaultPgxConnector,
 	}
 }
 
@@ -151,7 +168,11 @@ func (s *SupabaseService) pingPostgres(ctx context.Context, cfg *config.Supabase
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	conn, err := pgx.Connect(ctx, connStr)
+	connector := s.pgxConnector
+	if connector == nil {
+		connector = defaultPgxConnector
+	}
+	conn, err := connector(ctx, connStr)
 	if err != nil {
 		return &HeartbeatResult{
 			TargetType: "supabase",
@@ -265,7 +286,7 @@ func (s *SupabaseService) cleanupOldRecords(ctx context.Context, cfg *config.Sup
 	}
 }
 
-func (s *SupabaseService) ensureTableSchema(ctx context.Context, conn *pgx.Conn, tableName string) error {
+func (s *SupabaseService) ensureTableSchema(ctx context.Context, conn pgxConnExecutor, tableName string) error {
 	var exists bool
 	checkSQL := `SELECT EXISTS (
 		SELECT 1 FROM information_schema.tables 

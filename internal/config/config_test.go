@@ -267,4 +267,129 @@ func TestParseDuration(t *testing.T) {
 	}
 }
 
+func TestExtractSCCCustomProperties_AllBranches(t *testing.T) {
+	viper.Reset()
+	defer viper.Reset()
+
+	// 1. log.level mapping
+	viper.Set("log.level", "debug")
+
+	// 2. db.<alias>.*
+	viper.Set("db.sb-new.host", "postgres://user:pass@localhost:5432/db1")
+	viper.Set("db.sb-existing.host", "postgres://user:pass@localhost:5432/db2")
+
+	// 3. kafka.<alias>.*
+	// a. bootstrap.servers direct string, default topic, default groupID, default protocol
+	viper.Set("kafka.kf-defaults", map[string]interface{}{
+		"bootstrap.servers": "broker1:9092, broker2:9092",
+	})
+
+	// b. bootstrap.servers with custom topic, group_id, and security map
+	viper.Set("kafka.kf-custom.bootstrap.servers", "broker3:9092")
+	viper.Set("kafka.kf-custom.topic", "custom-topic")
+	viper.Set("kafka.kf-custom.group_id", "custom-group")
+	viper.Set("kafka.kf-custom.security.protocol", "SASL_PLAINTEXT")
+	viper.Set("kafka.kf-custom.sasl.mechanism", "PLAIN")
+	viper.Set("kafka.kf-custom.sasl.username", "user")
+	viper.Set("kafka.kf-custom.sasl.password", "pass")
+	viper.Set("kafka.kf-custom.ssl.ca.location", "/path/to/ca.pem")
+
+	// c. existing kafka alias to trigger exists=true
+	viper.Set("kafka.kf-existing.bootstrap.servers", "broker4:9092")
+
+	enabled := true
+	cfg := &Config{
+		Supabase: []SupabaseConfig{
+			{
+				Alias:   "sb-existing",
+				Enabled: &enabled,
+				Host:    "postgres://user:pass@localhost:5432/existing",
+			},
+		},
+		Kafka: []KafkaConfig{
+			{
+				Alias:   "kf-existing",
+				Enabled: &enabled,
+				Brokers: []string{"broker4:9092"},
+			},
+		},
+	}
+
+	extractSCCCustomProperties(cfg)
+
+	// Verify log level
+	if cfg.App.LogLevel != "debug" {
+		t.Errorf("expected LogLevel 'debug', got '%s'", cfg.App.LogLevel)
+	}
+
+	// Verify supabase
+	if len(cfg.Supabase) != 2 {
+		t.Fatalf("expected 2 supabase configs (1 existing, 1 new), got %d", len(cfg.Supabase))
+	}
+	var newSb *SupabaseConfig
+	for i := range cfg.Supabase {
+		if cfg.Supabase[i].Alias == "sb-new" {
+			newSb = &cfg.Supabase[i]
+			break
+		}
+	}
+	if newSb == nil {
+		t.Fatalf("expected sb-new to be added")
+	}
+	if newSb.Host != "postgres://user:pass@localhost:5432/db1" {
+		t.Errorf("expected host postgres://user:pass@localhost:5432/db1, got %s", newSb.Host)
+	}
+
+	// Verify kafka
+	if len(cfg.Kafka) != 3 {
+		t.Fatalf("expected 3 kafka configs (1 existing, 2 new), got %d", len(cfg.Kafka))
+	}
+
+	var kfDef *KafkaConfig
+	var kfCust *KafkaConfig
+	for i := range cfg.Kafka {
+		if cfg.Kafka[i].Alias == "kf-defaults" {
+			kfDef = &cfg.Kafka[i]
+		}
+		if cfg.Kafka[i].Alias == "kf-custom" {
+			kfCust = &cfg.Kafka[i]
+		}
+	}
+
+	if kfDef == nil {
+		t.Fatalf("expected kf-defaults to be created")
+	}
+	if len(kfDef.Brokers) != 2 || kfDef.Brokers[0] != "broker1:9092" || kfDef.Brokers[1] != "broker2:9092" {
+		t.Errorf("expected [broker1:9092 broker2:9092], got %v", kfDef.Brokers)
+	}
+	if kfDef.Topic != "heartbeat-ping" {
+		t.Errorf("expected default topic 'heartbeat-ping', got '%s'", kfDef.Topic)
+	}
+	if kfDef.Consume.GroupID != "hb-kf-defaults-group" {
+		t.Errorf("expected default groupID 'hb-kf-defaults-group', got '%s'", kfDef.Consume.GroupID)
+	}
+	if kfDef.Security.Protocol != "SASL_SSL" {
+		t.Errorf("expected default protocol 'SASL_SSL', got '%s'", kfDef.Security.Protocol)
+	}
+
+	if kfCust == nil {
+		t.Fatalf("expected kf-custom to be created")
+	}
+	if kfCust.Topic != "custom-topic" {
+		t.Errorf("expected custom topic 'custom-topic', got '%s'", kfCust.Topic)
+	}
+	if kfCust.Consume.GroupID != "custom-group" {
+		t.Errorf("expected custom groupID 'custom-group', got '%s'", kfCust.Consume.GroupID)
+	}
+	if kfCust.Security.Protocol != "SASL_PLAINTEXT" {
+		t.Errorf("expected protocol 'SASL_PLAINTEXT', got '%s'", kfCust.Security.Protocol)
+	}
+	if kfCust.Security.SASL.Mechanism != "PLAIN" {
+		t.Errorf("expected SASL mechanism 'PLAIN', got '%s'", kfCust.Security.SASL.Mechanism)
+	}
+	if kfCust.Security.SSL.CACertFile != "/path/to/ca.pem" {
+		t.Errorf("expected CACertFile '/path/to/ca.pem', got '%s'", kfCust.Security.SSL.CACertFile)
+	}
+}
+
 
