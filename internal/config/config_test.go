@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -193,6 +194,76 @@ func TestResolveDefaultInterval(t *testing.T) {
 	t.Setenv("HEALTH_INTERVAL", "2m")
 	if got := resolveDefaultInterval(); got != "2m" {
 		t.Errorf("expected 2m from HEALTH_INTERVAL, got %s", got)
+	}
+}
+
+func TestRetentionDuration(t *testing.T) {
+	c1 := SupabaseCleanupConfig{Retention: "12h"}
+	if c1.RetentionDuration() != 12*time.Hour {
+		t.Errorf("expected 12h, got %v", c1.RetentionDuration())
+	}
+
+	c2 := SupabaseCleanupConfig{RetentionHours: 48}
+	if c2.RetentionDuration() != 48*time.Hour {
+		t.Errorf("expected 48h, got %v", c2.RetentionDuration())
+	}
+
+	c3 := SupabaseCleanupConfig{RetentionDays: 3}
+	if c3.RetentionDuration() != 72*time.Hour {
+		t.Errorf("expected 72h, got %v", c3.RetentionDuration())
+	}
+
+	cDefault := SupabaseCleanupConfig{}
+	if cDefault.RetentionDuration() != 24*time.Hour {
+		t.Errorf("expected 24h default, got %v", cDefault.RetentionDuration())
+	}
+}
+
+func TestIsEnabledHelpers(t *testing.T) {
+	bTrue := true
+	bFalse := false
+
+	// KafkaConfig
+	kc := KafkaConfig{}
+	if !kc.IsEnabled() {
+		t.Errorf("expected nil enabled to default to true")
+	}
+	kc.Enabled = &bFalse
+	if kc.IsEnabled() {
+		t.Errorf("expected false")
+	}
+
+	// KafkaProduceConfig
+	pc := KafkaProduceConfig{}
+	if !pc.IsEnabled() {
+		t.Errorf("expected nil produce enabled to default to true")
+	}
+	pc.Enabled = &bFalse
+	if pc.IsEnabled() {
+		t.Errorf("expected false")
+	}
+
+	// KafkaConsumeConfig
+	cc := KafkaConsumeConfig{}
+	if !cc.IsEnabled() {
+		t.Errorf("expected nil consume enabled to default to true")
+	}
+	cc.Enabled = &bTrue
+	if !cc.IsEnabled() {
+		t.Errorf("expected true")
+	}
+}
+
+func TestParseDuration(t *testing.T) {
+	fallback := 10 * time.Minute
+	if got := ParseDuration("", fallback); got != fallback {
+		t.Errorf("expected fallback %v, got %v", fallback, got)
+	}
+	if got := ParseDuration("invalid-duration", fallback); got != fallback {
+		t.Errorf("expected fallback %v on error, got %v", fallback, got)
+	}
+	if got := ParseDuration("15s", fallback); got != 15*time.Second {
+		t.Errorf("expected 15s, got %v", got)
 	}
 }
 

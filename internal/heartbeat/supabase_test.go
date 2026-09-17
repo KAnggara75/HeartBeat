@@ -83,3 +83,51 @@ func TestSupabasePingFailure(t *testing.T) {
 		t.Fatalf("expected failure, got success: %s", result.Message)
 	}
 }
+
+func TestSupabasePingConflictAndCleanupWarning(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			// Return Conflict 409
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+		if r.Method == http.MethodDelete {
+			// Return 500 on delete to trigger warning branch
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("cleanup error"))
+			return
+		}
+	}))
+	defer server.Close()
+
+	service := NewSupabaseService()
+	cfg := &config.SupabaseConfig{
+		Alias:     "test-conflict",
+		URL:       server.URL,
+		ApiKey:    "key",
+		TableName: "heartbeats",
+		Cleanup: config.SupabaseCleanupConfig{
+			Enabled:       true,
+			RetentionDays: 1,
+		},
+	}
+
+	result := service.Ping(context.Background(), cfg)
+	if !result.Success {
+		t.Fatalf("expected success on 409 conflict, got: %s", result.Message)
+	}
+}
+
+func TestSupabasePingPostgresFailure(t *testing.T) {
+	service := NewSupabaseService()
+	cfg := &config.SupabaseConfig{
+		Alias:   "test-pg-fail",
+		Host:    "postgresql://invaliduser:invalidpass@127.0.0.1:59997/invalid_db",
+		Timeout: "100ms",
+	}
+
+	result := service.Ping(context.Background(), cfg)
+	if result.Success {
+		t.Fatalf("expected failure connecting to invalid postgres, got success")
+	}
+}
