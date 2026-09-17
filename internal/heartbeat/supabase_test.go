@@ -130,4 +130,68 @@ func TestSupabasePingPostgresFailure(t *testing.T) {
 	if result.Success {
 		t.Fatalf("expected failure connecting to invalid postgres, got success")
 	}
+
+	// Also test postgres:// prefix
+	cfg2 := &config.SupabaseConfig{
+		Alias:   "test-pg-fail2",
+		URL:     "postgres://invaliduser:invalidpass@127.0.0.1:59997/invalid_db",
+		Timeout: "100ms",
+	}
+	result2 := service.Ping(context.Background(), cfg2)
+	if result2.Success {
+		t.Fatalf("expected failure connecting to invalid postgres://, got success")
+	}
+}
+
+func TestSupabasePingPayloadMarshalError(t *testing.T) {
+	service := NewSupabaseService()
+	cfg := &config.SupabaseConfig{
+		Alias: "test-bad-payload",
+		URL:   "http://localhost:1234",
+		Payload: map[string]interface{}{
+			"bad": make(chan int), // channel cannot be JSON marshaled
+		},
+	}
+
+	result := service.Ping(context.Background(), cfg)
+	if result.Success {
+		t.Fatalf("expected failure when payload cannot be serialized, got success")
+	}
+}
+
+func TestSupabasePingInvalidURL(t *testing.T) {
+	service := NewSupabaseService()
+	cfg := &config.SupabaseConfig{
+		Alias: "test-bad-url",
+		URL:   "://invalid-url",
+	}
+
+	result := service.Ping(context.Background(), cfg)
+	if result.Success {
+		t.Fatalf("expected failure for invalid URL, got success")
+	}
+}
+
+func TestSupabaseCleanupNetworkError(t *testing.T) {
+	// Start a server that accepts POST but closes connection or shuts down before cleanup
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	serverURL := server.URL
+
+	service := NewSupabaseService()
+	cfg := &config.SupabaseConfig{
+		Alias:     "test-cleanup-net-err",
+		URL:       serverURL,
+		ApiKey:    "key",
+		TableName: "heartbeats",
+		Cleanup: config.SupabaseCleanupConfig{
+			Enabled:       true,
+			RetentionDays: 1,
+		},
+	}
+
+	// Close the server immediately after creating it so cleanup request fails with network error
+	server.Close()
+	service.cleanupOldRecords(context.Background(), cfg, serverURL)
 }

@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/KAnggara75/HeartBeat/internal/config"
+	"github.com/segmentio/kafka-go"
 )
 
 func TestBuildSecurityPlaintext(t *testing.T) {
@@ -228,5 +230,72 @@ func TestPingSecurityFailure(t *testing.T) {
 	res := svc.Ping(context.Background(), cfg)
 	if res.Success {
 		t.Errorf("expected Ping failure on security config error, got success")
+	}
+}
+
+func TestEnsureTopicExists_Failure(t *testing.T) {
+	svc := NewKafkaService()
+	// Unreachable broker port
+	cfg := &config.KafkaConfig{
+		Alias:   "test-kf",
+		Brokers: []string{"127.0.0.1:59996"},
+		Topic:   "hb-topic",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := svc.ensureTopicExists(ctx, cfg, &kafka.Transport{})
+	if err == nil {
+		t.Errorf("expected error connecting to non-existent broker, got nil")
+	}
+}
+
+func TestConsumeHeartbeat_TimeoutHandled(t *testing.T) {
+	svc := NewKafkaService()
+	enabled := true
+	cfg := &config.KafkaConfig{
+		Alias:   "test-kf",
+		Brokers: []string{"127.0.0.1:59995"},
+		Topic:   "hb-topic",
+		Consume: config.KafkaConsumeConfig{
+			Enabled: &enabled,
+			GroupID: "test-group",
+			Timeout: "50ms",
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// consumeHeartbeat gracefully returns nil on DeadlineExceeded/Canceled
+	_ = svc.consumeHeartbeat(ctx, cfg, nil, nil)
+}
+
+func TestPingProduceAndConsumeEnabled(t *testing.T) {
+	svc := NewKafkaService()
+	enabled := true
+	cfg := &config.KafkaConfig{
+		Alias:   "test-kf-produce",
+		Brokers: []string{"127.0.0.1:59994"},
+		Topic:   "hb-topic",
+		Produce: config.KafkaProduceConfig{
+			Enabled: &enabled,
+			Key:     "custom-key",
+			Message: "custom-msg",
+		},
+		Consume: config.KafkaConsumeConfig{
+			Enabled: &enabled,
+			GroupID: "test-group",
+			Timeout: "50ms",
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	res := svc.Ping(ctx, cfg)
+	if res.Success {
+		t.Errorf("expected failure since broker is unreachable, got success")
 	}
 }
